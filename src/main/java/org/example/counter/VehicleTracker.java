@@ -1,4 +1,4 @@
-package com.example.motorcontrol.vehiclecounter;
+package org.example.counter;
 
 import ai.djl.modality.cv.output.BoundingBox;
 import ai.djl.modality.cv.output.Rectangle;
@@ -22,7 +22,7 @@ public class VehicleTracker {
      * Constructor với tham số mặc định
      */
     public VehicleTracker() {
-        this(0.3, 5);
+        this(0.2, 5);
     }
 
     /**

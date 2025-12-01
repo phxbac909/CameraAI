@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option java_package = "com.example.grpc";
+option java_outer_classname = "DataTransferProto";
+
+service DataTransferService {
+  rpc ReceiveData(DataRequest) returns (DataResponse);
+}
+
+message DataRequest {
+  bytes data = 1;
+}
+
+message DataResponse {
+  int32 value = 1;  // Trả về int
+}

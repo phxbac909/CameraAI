@@ -1,4 +1,4 @@
-package com.example.motorcontrol.vehiclecounter;
+package org.example.counter;
 
 import ai.djl.modality.cv.output.BoundingBox;
 import ai.djl.modality.cv.output.Rectangle;

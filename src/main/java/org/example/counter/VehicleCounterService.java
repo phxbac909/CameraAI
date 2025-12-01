@@ -1,4 +1,4 @@
-package com.example.motorcontrol.vehiclecounter;
+package org.example.counter;
 
 import ai.djl.Application;
 import ai.djl.MalformedModelException;
@@ -14,11 +14,7 @@ import ai.djl.translate.TranslateException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Service đếm số phương tiện trong video với tracking
@@ -30,6 +26,16 @@ public class VehicleCounterService implements AutoCloseable {
     private final VehicleTracker tracker;
     private final ImageFactory imageFactory;
 
+    public static VehicleCounterService instanse;
+
+    static {
+        try {
+            instanse = new VehicleCounterService();
+        } catch (ModelNotFoundException | MalformedModelException | IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     // Vehicle classes trong COCO dataset
     private static final Set<String> VEHICLE_CLASSES = new HashSet<>(
             Arrays.asList("car", "motorcycle", "bus", "truck")
@@ -40,6 +46,7 @@ public class VehicleCounterService implements AutoCloseable {
 
     // Counter
     private int frameCount = 0;
+    private boolean headerPrinted = false;
 
     /**
      * Constructor - Khởi tạo model và tracker
@@ -96,10 +103,6 @@ public class VehicleCounterService implements AutoCloseable {
     public int receiveImage(byte[] imageBytes) {
         frameCount++;
 
-        System.out.println("\n" + "=".repeat(60));
-        System.out.println("📸 Processing Frame #" + frameCount);
-        System.out.println("=".repeat(60));
-
         try {
             // Bước 1: Convert byte[] thành DJL Image
             Image image = imageFactory.fromInputStream(
@@ -107,23 +110,19 @@ public class VehicleCounterService implements AutoCloseable {
             );
 
             // Bước 2: Detect vehicles
-            long detectStart = System.currentTimeMillis();
             DetectedObjects detectedObjects = predictor.predict(image);
-            long detectTime = System.currentTimeMillis() - detectStart;
 
             // Bước 3: Filter chỉ lấy vehicles
             List<Detection> vehicles = filterVehicles(detectedObjects);
 
-            System.out.println("🔍 Detection completed in " + detectTime + "ms");
-            System.out.println("   Found " + vehicles.size() + " vehicle(s) in current frame");
-
             // Bước 4: Update tracker
             tracker.update(vehicles);
 
-            // Bước 5: In thống kê
-            printStatistics();
+            // Bước 5: In bảng thống kê
+            printTableRow(vehicles);
+            tracker.getTotalVehicleCount();
 
-            return tracker.getTotalVehicleCount();
+            return tracker.getActiveVehicleCount();
 
         } catch (TranslateException e) {
             System.err.println("❌ Error during detection: " + e.getMessage());
@@ -155,8 +154,6 @@ public class VehicleCounterService implements AutoCloseable {
                         confidence
                 );
                 vehicles.add(detection);
-
-                System.out.println("   ✓ " + detection);
             }
         }
 
@@ -164,20 +161,95 @@ public class VehicleCounterService implements AutoCloseable {
     }
 
     /**
-     * In thống kê tracking
+     * In header của bảng
      */
-    private void printStatistics() {
-        System.out.println("\n📊 Tracking Statistics:");
-        System.out.println("   Total vehicles counted: " + tracker.getTotalVehicleCount());
-        System.out.println("   Currently active: " + tracker.getActiveVehicleCount());
+    private void printTableHeader() {
+        System.out.println("\n" + "=".repeat(100));
+        System.out.printf("| %-8s | %-8s | %-35s | %-35s |%n",
+                "Frame", "Total", "Current Vehicle", "Active Vehicle");
+        System.out.println("=".repeat(100));
+        headerPrinted = true;
+    }
 
-        List<TrackedVehicle> activeVehicles = tracker.getActiveVehicles();
-        if (!activeVehicles.isEmpty()) {
-            System.out.println("\n   Active vehicles:");
-            for (TrackedVehicle vehicle : activeVehicles) {
-                System.out.println("      • " + vehicle);
-            }
+    /**
+     * In một dòng trong bảng
+     */
+    private void printTableRow(List<Detection> currentDetections) {
+        if (!headerPrinted) {
+            printTableHeader();
         }
+
+        int totalCount = tracker.getTotalVehicleCount();
+        List<TrackedVehicle> activeVehicles = tracker.getActiveVehicles();
+
+        // Format Current Vehicle
+        String currentVehicleStr = formatVehicleList(currentDetections);
+
+        // Format Active Vehicle
+        String activeVehicleStr = formatTrackedVehicleList(activeVehicles);
+
+        System.out.printf("| %-8d | %-8d | %-35s | %-35s |%n",
+                frameCount,
+                totalCount,
+                currentVehicleStr,
+                activeVehicleStr);
+    }
+
+    /**
+     * Format danh sách detection thành string
+     */
+    private String formatVehicleList(List<Detection> detections) {
+        if (detections.isEmpty()) {
+            return "0";
+        }
+
+        // Đếm theo loại
+        Map<String, Integer> counts = new HashMap<>();
+        for (Detection d : detections) {
+            counts.put(d.getClassName(), counts.getOrDefault(d.getClassName(), 0) + 1);
+        }
+
+        // Build string
+        StringBuilder sb = new StringBuilder();
+        sb.append(detections.size()).append(" (");
+
+        List<String> parts = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
+            parts.add(entry.getValue() + " " + entry.getKey());
+        }
+        sb.append(String.join(", ", parts));
+        sb.append(")");
+
+        return sb.toString();
+    }
+
+    /**
+     * Format danh sách tracked vehicle thành string
+     */
+    private String formatTrackedVehicleList(List<TrackedVehicle> vehicles) {
+        if (vehicles.isEmpty()) {
+            return "0";
+        }
+
+        // Đếm theo loại
+        Map<String, Integer> counts = new HashMap<>();
+        for (TrackedVehicle v : vehicles) {
+            String className = v.getClassName();
+            counts.put(className, counts.getOrDefault(className, 0) + 1);
+        }
+
+        // Build string
+        StringBuilder sb = new StringBuilder();
+        sb.append(vehicles.size()).append(" (");
+
+        List<String> parts = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
+            parts.add(entry.getValue() + " " + entry.getKey());
+        }
+        sb.append(String.join(", ", parts));
+        sb.append(")");
+
+        return sb.toString();
     }
 
     /**
@@ -207,6 +279,7 @@ public class VehicleCounterService implements AutoCloseable {
     public void reset() {
         tracker.reset();
         frameCount = 0;
+        headerPrinted = false;
         System.out.println("🔄 Service reset");
     }
 
@@ -218,6 +291,7 @@ public class VehicleCounterService implements AutoCloseable {
         if (predictor != null) {
             predictor.close();
         }
+        System.out.println("\n" + "=".repeat(100));
         System.out.println("👋 VehicleCounterService closed");
     }
 
@@ -225,11 +299,11 @@ public class VehicleCounterService implements AutoCloseable {
      * In summary cuối cùng
      */
     public void printFinalSummary() {
-        System.out.println("\n" + "=".repeat(60));
+        System.out.println("\n" + "=".repeat(100));
         System.out.println("📈 FINAL SUMMARY");
-        System.out.println("=".repeat(60));
+        System.out.println("=".repeat(100));
         System.out.println("Total frames processed: " + frameCount);
         System.out.println("Total vehicles counted: " + tracker.getTotalVehicleCount());
-        System.out.println("=".repeat(60) + "\n");
+        System.out.println("=".repeat(100) + "\n");
     }
 }
