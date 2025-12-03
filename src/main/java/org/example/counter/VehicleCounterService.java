@@ -42,7 +42,7 @@ public class VehicleCounterService implements AutoCloseable {
     );
 
     // Confidence threshold cho detection
-    private static final double CONFIDENCE_THRESHOLD = 0.5;
+    private static final double CONFIDENCE_THRESHOLD = 0.1;
 
     // Counter
     private int frameCount = 0;
@@ -56,7 +56,7 @@ public class VehicleCounterService implements AutoCloseable {
      * @throws IOException Nếu lỗi I/O
      */
     public VehicleCounterService() throws ModelNotFoundException, MalformedModelException, IOException {
-        this(0.3, 5);
+        this(0.1, 10);
     }
 
     /**
@@ -76,7 +76,7 @@ public class VehicleCounterService implements AutoCloseable {
         Criteria<Image, DetectedObjects> criteria = Criteria.builder()
                 .optApplication(Application.CV.OBJECT_DETECTION)
                 .setTypes(Image.class, DetectedObjects.class)
-                .optModelUrls("djl://ai.djl.pytorch/yolov5s")
+                .optModelUrls("djl://ai.djl.pytorch/yolov5s")  // 's' → 'm'
                 .optEngine("PyTorch")
                 .optProgress(new ProgressBar())
                 .build();
@@ -103,6 +103,12 @@ public class VehicleCounterService implements AutoCloseable {
     public int receiveImage(byte[] imageBytes) {
         frameCount++;
 
+        if (imageBytes.length == 0) {
+            int totalVehicleCount = tracker.getTotalVehicleCount();
+            tracker.reset();
+            return totalVehicleCount;
+
+        }
         try {
             // Bước 1: Convert byte[] thành DJL Image
             Image image = imageFactory.fromInputStream(

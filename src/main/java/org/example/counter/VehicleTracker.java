@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Tracker đơn giản sử dụng IoU matching
+ * Tracker với motion prediction để xử lý temporary occlusion
  */
 public class VehicleTracker {
     private final List<TrackedVehicle> activeVehicles;
@@ -18,17 +18,21 @@ public class VehicleTracker {
     private final double iouThreshold;
     private final int maxMissingFrames;
 
+    // THAM SỐ MỚI: IoU threshold khi xe đang missing
+    // Khi xe bị missing, ta nới lỏng IoU threshold để dễ match hơn
+    private final double missingIouThreshold;
+
     /**
      * Constructor với tham số mặc định
      */
     public VehicleTracker() {
-        this(0.2, 5);
+        this(0.05, 10);
     }
 
     /**
      * Constructor với tham số tùy chỉnh
      *
-     * @param iouThreshold Ngưỡng IoU để match (0.1-0.5)
+     * @param iouThreshold Ngưỡng IoU để match khi detect liên tục
      * @param maxMissingFrames Số frame tối đa không detect được trước khi xóa
      */
     public VehicleTracker(double iouThreshold, int maxMissingFrames) {
@@ -37,6 +41,13 @@ public class VehicleTracker {
         this.totalVehicleCount = 0;
         this.iouThreshold = iouThreshold;
         this.maxMissingFrames = maxMissingFrames;
+
+        // Khi xe missing, nới lỏng IoU threshold gấp đôi
+        this.missingIouThreshold = Math.min(iouThreshold * 2.5, 0.3);
+
+        System.out.println("🎯 Tracker initialized:");
+        System.out.println("   - Normal IoU threshold: " + iouThreshold);
+        System.out.println("   - Missing IoU threshold: " + missingIouThreshold);
     }
 
     /**
@@ -61,16 +72,26 @@ public class VehicleTracker {
             double bestIoU = 0;
             int bestDetectionIdx = -1;
 
+            // QUAN TRỌNG: Sử dụng predicted bounding box nếu xe đang missing
+            BoundingBox vehicleBox = vehicle.getMissingFrames() > 0
+                    ? vehicle.getPredictedBoundingBox()
+                    : vehicle.getBoundingBox();
+
+            // Chọn IoU threshold phù hợp
+            double currentIouThreshold = vehicle.getMissingFrames() > 0
+                    ? missingIouThreshold
+                    : iouThreshold;
+
             // Tìm detection có IoU cao nhất với vehicle này
             for (int j = 0; j < detections.size(); j++) {
                 if (matchedDetections[j]) continue;  // Detection đã được match
 
                 double iou = calculateIoU(
-                        vehicle.getBoundingBox(),
+                        vehicleBox,
                         detections.get(j).getBoundingBox()
                 );
 
-                if (iou > bestIoU && iou >= iouThreshold) {
+                if (iou > bestIoU && iou >= currentIouThreshold) {
                     bestIoU = iou;
                     bestDetectionIdx = j;
                 }
@@ -81,6 +102,10 @@ public class VehicleTracker {
                 vehicle.update(detections.get(bestDetectionIdx));
                 matchedDetections[bestDetectionIdx] = true;
                 matchedVehicles[i] = true;
+
+                if (vehicle.getMissingFrames() == 0) {
+                    System.out.println("✅ Re-tracked vehicle after missing: " + vehicle);
+                }
             }
         }
 
