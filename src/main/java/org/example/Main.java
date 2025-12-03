@@ -1,6 +1,5 @@
 package org.example;
 
-import org.example.counter.VehicleCounterService;
 import org.example.service.GrpcServerController;
 
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or

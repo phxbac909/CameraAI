@@ -4,19 +4,16 @@ import ai.djl.MalformedModelException;
 import ai.djl.repository.zoo.ModelNotFoundException;
 import com.example.grpc.DataTransferProto;
 import com.example.grpc.DataTransferServiceGrpc;
-import com.google.protobuf.Timestamp;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
-import org.example.counter.VehicleCounterService;
+import org.example.counter.VehicleCounterService1;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.util.function.Consumer;
 
 public class  GrpcServerController {
 
-    VehicleCounterService vehicleCounterService = VehicleCounterService.instanse;
+    VehicleCounterService1 vehicleCounterService = VehicleCounterService1.instanse;
     private Server server;
 
     public GrpcServerController(int port) throws ModelNotFoundException, MalformedModelException, IOException {
