@@ -2,21 +2,23 @@ package org.example.service;
 
 import ai.djl.MalformedModelException;
 import ai.djl.repository.zoo.ModelNotFoundException;
+import ai.djl.translate.TranslateException;
 import com.example.grpc.DataTransferProto;
 import com.example.grpc.DataTransferServiceGrpc;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
-import org.example.counter.VehicleCounterService1;
+import org.example.counter.VehicleCounterService;
+import org.example.counter_v2.VehicleCounterService_v1;
 
 import java.io.IOException;
 
 public class  GrpcServerController {
 
-    VehicleCounterService1 vehicleCounterService = VehicleCounterService1.instanse;
+    VehicleCounterService vehicleCounterService = new VehicleCounterService();
     private Server server;
 
-    public GrpcServerController(int port) throws ModelNotFoundException, MalformedModelException, IOException {
+    public GrpcServerController(int port) throws Exception {
         try {
             server = ServerBuilder.forPort(port)
                     .addService(new DataTransferServiceGrpc.DataTransferServiceImplBase() {
@@ -26,7 +28,8 @@ public class  GrpcServerController {
                             byte[] data = request.getData().toByteArray();
 
                             // Gọi handler và nhận int
-                            int result = vehicleCounterService.receiveImage(data);
+                            int result = 0;
+                            result = vehicleCounterService.receiveImage(data);
 
                             // Trả về int
                             DataTransferProto.DataResponse response = DataTransferProto.DataResponse.newBuilder()
